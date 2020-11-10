@@ -1,0 +1,13 @@
+[package]
+name = "bulletproofs-gadgets"
+version = "0.1.0"
+authors = ["Filip <lazoviccorp@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+curve25519-dalek = { version = "3.0.0", default-features = false, features = ["u64_backend", "nightly", "serde", "alloc"] }
+rand = { version = "0.7", default-features = false, optional = true }
+merlin = { version = "2", default-features = false }
+bulletproofs = { version = "2.0.0", branch = "main", git = "https://github.com/edgeware-builders/bulletproofs"}
