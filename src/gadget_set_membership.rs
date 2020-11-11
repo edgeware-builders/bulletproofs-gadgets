@@ -1,9 +1,8 @@
 use bulletproofs::r1cs::LinearCombination;
-use bulletproofs::r1cs::{ConstraintSystem, Prover, R1CSError, Variable, Verifier};
-use bulletproofs::{BulletproofGens, PedersenGens};
+use bulletproofs::r1cs::{ConstraintSystem, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
 
-use bulletproofs::r1cs_utils::AllocatedQuantity;
+use crate::r1cs_utils::AllocatedQuantity;
 
 // Ensure `v` is a bit, hence 0 or 1
 pub fn bit_gadget<CS: ConstraintSystem>(
@@ -83,21 +82,19 @@ pub fn vector_product_gadget<CS: ConstraintSystem>(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use bulletproofs::r1cs::{Prover, Verifier};
+	use bulletproofs::{BulletproofGens, PedersenGens};
 	use merlin::Transcript;
 
 	#[test]
-	fn set_membership_check_gadget() {
-		// let set: Vec<u64> = vec![2, 3, 5, 6, 8, 20, 25];
-		// let value = 3u64;
-
-		// assert!(set_membership_check_helper(value, set).is_ok());
-	}
-
 	// Allocate a bitmap for the `set` with 1 as the index of `value`, 0 otherwise. Then commit to values of bitmap
 	// and prove that each element is either 0 or 1, sum of elements of this bitmap is 1 (as there is only 1 element)
 	// and the relation set[i] * bitmap[i] = bitmap[i] * value.
 	// Taken from https://github.com/HarryR/ethsnarks/blob/master/src/gadgets/one_of_n.hpp
-	fn set_membership_check_helper(value: u64, set: Vec<u64>) -> Result<(), R1CSError> {
+	fn set_membership_check_gadget() {
+		let set: Vec<u64> = vec![2, 3, 5, 6, 8, 20, 25];
+		let value = 3u64;
+
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);
 
@@ -146,9 +143,10 @@ mod tests {
 				&prover.num_constraints()
 			);
 			//            println!("Prover commitments {:?}", &comms);
-			let proof = prover.prove(&bp_gens)?;
+			let proof = prover.prove(&bp_gens);
+			assert!(proof.is_ok());
 
-			(proof, comms)
+			(proof.unwrap(), comms)
 		};
 
 		let mut verifier_transcript = Transcript::new(b"SetMemebershipTest");
@@ -173,10 +171,10 @@ mod tests {
 			assignment: None,
 		};
 
-		assert!(vector_product_gadget(&mut verifier, &set, &bit_vars, &quantity_value).is_ok());
+		// assert!(vector_product_gadget(&mut verifier, &set, &bit_vars, &quantity_value).is_ok());
 
 		//        println!("Verifier commitments {:?}", &commitments);
 
-		Ok(verifier.verify(&proof, &pc_gens, &bp_gens)?)
+		// assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
 	}
 }

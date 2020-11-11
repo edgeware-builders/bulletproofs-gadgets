@@ -1,12 +1,11 @@
-use bulletproofs::r1cs::LinearCombination;
-use bulletproofs::r1cs::{ConstraintSystem, Prover, R1CSError, Variable, Verifier};
-use bulletproofs::r1cs_utils::{positive_no_gadget, AllocatedQuantity};
-use bulletproofs::{BulletproofGens, PedersenGens};
-use curve25519_dalek::scalar::Scalar;
-
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::gadget_bound_check::positive_no_gadget;
+	use crate::r1cs_utils::AllocatedQuantity;
+	use bulletproofs::r1cs::LinearCombination;
+	use bulletproofs::r1cs::{ConstraintSystem, Prover, Variable, Verifier};
+	use bulletproofs::{BulletproofGens, PedersenGens};
+	use curve25519_dalek::scalar::Scalar;
 	use merlin::Transcript;
 
 	#[test]
@@ -19,10 +18,6 @@ mod tests {
 
 		let v = rng.gen_range(min, max);
 		println!("v is {}", &v);
-		assert!(range_proof_helper(v, min, max).is_ok());
-	}
-
-	fn range_proof_helper(v: u64, min: u64, max: u64) -> Result<(), R1CSError> {
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);
 
@@ -74,9 +69,10 @@ mod tests {
 				&prover.num_constraints()
 			);
 			//            println!("Prover commitments {:?}", &comms);
-			let proof = prover.prove(&bp_gens)?;
+			let proof = prover.prove(&bp_gens);
+			assert!(proof.is_ok());
 
-			(proof, comms)
+			(proof.unwrap(), comms)
 		};
 
 		println!("Proving done");
@@ -105,6 +101,6 @@ mod tests {
 		verifier.constrain(var_a + var_b - var_c);
 
 		// Verifier verifies proof
-		Ok(verifier.verify(&proof, &pc_gens, &bp_gens)?)
+		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
 	}
 }

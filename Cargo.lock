@@ -19,7 +19,7 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 [[package]]
 name = "bulletproofs"
 version = "2.0.0"
-source = "git+https://github.com/edgeware-builders/bulletproofs?branch=main#7c6df0230a5949a153c65affc20ad73e85e1ef2e"
+source = "git+https://github.com/edgeware-builders/bulletproofs?branch=build-update#9c4076b7d924a7a6876dee42d898cb48eb9fdbff"
 dependencies = [
  "byteorder",
  "clear_on_drop",
@@ -40,9 +40,11 @@ name = "bulletproofs-gadgets"
 version = "0.1.0"
 dependencies = [
  "bulletproofs",
+ "byteorder",
  "curve25519-dalek",
  "merlin",
  "rand",
+ "rand_chacha",
 ]
 
 [[package]]
@@ -80,7 +82,6 @@ checksum = "c8492de420e9e60bc9a1d66e2dbb91825390b738a388606600663fc529b4b307"
 dependencies = [
  "byteorder",
  "digest",
- "packed_simd",
  "rand_core",
  "serde",
  "subtle",
@@ -146,15 +147,6 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
-
-[[package]]
-name = "packed_simd"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a85ea9fc0d4ac0deb6fe7911d38786b32fc11119afd9e9d38b84ff691ce64220"
-dependencies = [
- "cfg-if",
-]
 
 [[package]]
 name = "ppv-lite86"

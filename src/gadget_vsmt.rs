@@ -1,18 +1,10 @@
-use bulletproofs::mimc::{mimc, MIMC_ROUNDS};
-use bulletproofs::r1cs::{
-	ConstraintSystem, LinearCombination, Prover, R1CSError, Variable, Verifier,
-};
-use bulletproofs::r1cs_utils::{constrain_lc_with_scalar, AllocatedScalar};
-use bulletproofs::scalar_utils::{get_bits, get_bits_at, ScalarBits, ScalarBytes, TREE_DEPTH};
-use bulletproofs::{BulletproofGens, PedersenGens};
+use crate::r1cs_utils::{constrain_lc_with_scalar, AllocatedScalar};
+use crate::scalar_utils::TREE_DEPTH;
+use bulletproofs::r1cs::{ConstraintSystem, LinearCombination, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
-use merlin::Transcript;
-use rand::thread_rng;
-use std::collections::HashMap;
 
-use bulletproofs::poseidon::{
-	allocate_statics_for_prover, allocate_statics_for_verifier, PoseidonParams, Poseidon_hash_2,
-	Poseidon_hash_2_constraints, SboxType,
+use crate::gadget_poseidon::{
+	PoseidonParams, Poseidon_hash_2, Poseidon_hash_2_constraints, SboxType,
 };
 
 type DBVal = (Scalar, Scalar);
@@ -136,7 +128,12 @@ pub fn div2(scalar: &Scalar) -> Scalar {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use curve25519_dalek::constants::BASEPOINT_ORDER;
+	use crate::gadget_poseidon::{allocate_statics_for_prover, allocate_statics_for_verifier};
+	use crate::scalar_utils::get_bits_at;
+	use bulletproofs::r1cs::{Prover, Verifier};
+	use bulletproofs::{BulletproofGens, PedersenGens};
+	use merlin::Transcript;
+	use rand::thread_rng;
 
 	#[test]
 	fn test_mul2_div2() {

@@ -1,10 +1,8 @@
 use curve25519_dalek::scalar::Scalar;
-use rand::SeedableRng;
-use rand_chacha::ChaChaRng;
 use std::collections::HashMap;
 
-use bulletproofs::mimc::{mimc, MIMC_ROUNDS};
-use bulletproofs::scalar_utils::{scalar_to_u64_array, ScalarBits, ScalarBytes, TREE_DEPTH};
+use crate::mimc::{mimc, MIMC_ROUNDS};
+use crate::scalar_utils::{scalar_to_u64_array, ScalarBits, ScalarBytes, TREE_DEPTH};
 
 type DBVal = (Option<bool>, Scalar, Scalar);
 
@@ -415,6 +413,8 @@ impl<'a> OptmzSparseMerkleTree<'a> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use rand::SeedableRng;
+	use rand_chacha::ChaChaRng;
 
 	#[test]
 	fn test_optmz_sparse_merkle_tree() {

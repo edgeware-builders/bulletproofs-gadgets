@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 curve25519-dalek = { version = "3.0.0", default-features = false, features = ["u64_backend", "nightly", "serde", "alloc"] }
-rand = { version = "0.7", default-features = false, optional = true }
+rand = { version = "0.7", default-features = false }
 merlin = { version = "2", default-features = false }
-bulletproofs = { version = "2.0.0", branch = "main", git = "https://github.com/edgeware-builders/bulletproofs"}
+bulletproofs = { version = "2.0.0", branch = "build-update", git = "https://github.com/edgeware-builders/bulletproofs"}
+byteorder = { version = "1", default-features = false }
+rand_chacha = "0.2.2"

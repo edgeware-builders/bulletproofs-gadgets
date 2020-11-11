@@ -1,8 +1,6 @@
+use crate::r1cs_utils::AllocatedScalar;
 use bulletproofs::r1cs::LinearCombination;
-use bulletproofs::r1cs::{ConstraintSystem, Prover, R1CSError, Variable, Verifier};
-use bulletproofs::r1cs_utils::AllocatedScalar;
-use bulletproofs::{BulletproofGens, PedersenGens};
-use curve25519_dalek::ristretto::CompressedRistretto;
+use bulletproofs::r1cs::{ConstraintSystem, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
 
 pub fn set_membership_1_gadget<CS: ConstraintSystem>(
@@ -38,6 +36,9 @@ pub fn set_membership_1_gadget<CS: ConstraintSystem>(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use bulletproofs::r1cs::{Prover, Verifier};
+	use bulletproofs::{BulletproofGens, PedersenGens};
+	use curve25519_dalek::ristretto::CompressedRistretto;
 	use merlin::Transcript;
 
 	#[test]
@@ -45,12 +46,6 @@ mod tests {
 		let set: Vec<u64> = vec![2, 3, 5, 6, 8, 20, 25];
 		let value = 20u64;
 
-		assert!(set_membership_1_check_helper(value, set).is_ok());
-	}
-
-	// Prove that difference between 1 set element and value is zero, hence value does not equal any set element.
-	// For this create a vector of differences and prove that product of elements of such vector is 0
-	fn set_membership_1_check_helper(value: u64, set: Vec<u64>) -> Result<(), R1CSError> {
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);
 
@@ -94,9 +89,10 @@ mod tests {
 				&prover.num_constraints()
 			);
 
-			let proof = prover.prove(&bp_gens)?;
+			let proof = prover.prove(&bp_gens);
+			assert!(proof.is_ok());
 
-			(proof, comms)
+			(proof.unwrap(), comms)
 		};
 
 		let mut verifier_transcript = Transcript::new(b"SetMemebership1Test");
@@ -120,6 +116,6 @@ mod tests {
 
 		assert!(set_membership_1_gadget(&mut verifier, alloc_scal, diff_vars, &set).is_ok());
 
-		Ok(verifier.verify(&proof, &pc_gens, &bp_gens)?)
+		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
 	}
 }

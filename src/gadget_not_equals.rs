@@ -1,10 +1,34 @@
 use bulletproofs::r1cs::LinearCombination;
-use bulletproofs::r1cs::{ConstraintSystem, Prover, R1CSError, Variable, Verifier};
-use bulletproofs::{BulletproofGens, PedersenGens};
-use curve25519_dalek::ristretto::CompressedRistretto;
+use bulletproofs::r1cs::{ConstraintSystem, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
 
-use bulletproofs::r1cs_utils::{is_nonzero_gadget, AllocatedScalar};
+use crate::r1cs_utils::AllocatedScalar;
+
+/// Enforces that x is 0.
+pub fn is_nonzero_gadget<CS: ConstraintSystem>(
+	cs: &mut CS,
+	x: AllocatedScalar,
+	x_inv: AllocatedScalar,
+) -> Result<(), R1CSError> {
+	let y: u32 = 1;
+
+	let x_lc: LinearCombination = vec![(x.variable, Scalar::one())].iter().collect();
+	let one_minus_y_lc: LinearCombination = vec![(Variable::One(), Scalar::from(1 - y))]
+		.iter()
+		.collect();
+	let y_lc: LinearCombination = vec![(Variable::One(), Scalar::from(y))].iter().collect();
+
+	// x * (1-y) = 0
+	let (_, _, o1) = cs.multiply(x_lc.clone(), one_minus_y_lc);
+	cs.constrain(o1.into());
+
+	// x * x_inv = y
+	let inv_lc: LinearCombination = vec![(x_inv.variable, Scalar::one())].iter().collect();
+	let (_, _, o2) = cs.multiply(x_lc.clone(), inv_lc.clone());
+	// Output wire should have value `y`
+	cs.constrain(o2 - y_lc);
+	Ok(())
+}
 
 // Ensure `v` is not equal to expected
 pub fn not_equals_gadget<CS: ConstraintSystem>(
@@ -30,7 +54,11 @@ pub fn not_equals_gadget<CS: ConstraintSystem>(
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use super::{not_equals_gadget, AllocatedScalar};
+	use bulletproofs::r1cs::{Prover, R1CSError, Verifier};
+	use bulletproofs::{BulletproofGens, PedersenGens};
+	use curve25519_dalek::ristretto::CompressedRistretto;
+	use curve25519_dalek::scalar::Scalar;
 	use merlin::Transcript;
 
 	#[test]
