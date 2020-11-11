@@ -7,6 +7,36 @@ mod tests {
 	use merlin::Transcript;
 
 	#[test]
+	fn test_zero() {
+		let pc_gens = PedersenGens::default();
+		let bp_gens = BulletproofGens::new(128, 1);
+
+		let x = 0u64;
+
+		let mut prover_transcript = Transcript::new(b"Zero");
+		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
+
+		let mut rng = rand::thread_rng();
+		let (com_x, var_x) = prover.commit(x.into(), Scalar::random(&mut rng));
+		let (_, _, res) = prover.multiply(var_x.into(), var_x.into());
+		prover.constrain(res.into());
+
+		let proof = prover.prove(&bp_gens).unwrap();
+
+		// Verifier
+		let mut verifier_transcript = Transcript::new(b"Zero");
+		let mut verifier = Verifier::new(&mut verifier_transcript);
+		let var_x = verifier.commit(com_x);
+
+		let (_, _, ver_res) = verifier.multiply(var_x.into(), var_x.into());
+		verifier.constrain(ver_res.into());
+
+		let res = verifier.verify(&proof, &pc_gens, &bp_gens);
+		println!("{:?}", res);
+		assert!(res.is_ok());
+	}
+
+	#[test]
 	fn test_poly_equal() {
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);
