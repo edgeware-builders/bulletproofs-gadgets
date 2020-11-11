@@ -1,4 +1,4 @@
-use crate::r1cs_utils::{constrain_lc_with_scalar, AllocatedScalar};
+use crate::r1cs_utils::constrain_lc_with_scalar;
 use crate::scalar_utils::TREE_DEPTH;
 use bulletproofs::r1cs::{ConstraintSystem, LinearCombination, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
@@ -67,33 +67,30 @@ pub fn merkle_tree_verif_gadget<CS: ConstraintSystem>(
 	cs: &mut CS,
 	depth: usize,
 	root: &Scalar,
-	leaf_val: AllocatedScalar,
-	leaf_index_bits: Vec<AllocatedScalar>,
-	proof_nodes: Vec<AllocatedScalar>,
-	statics: Vec<AllocatedScalar>,
+	leaf_val: Variable,
+	leaf_index_bits: Vec<Variable>,
+	proof_nodes: Vec<Variable>,
+	statics: Vec<Variable>,
 	poseidon_params: &PoseidonParams,
 ) -> Result<(), R1CSError> {
 	let mut prev_hash = LinearCombination::default();
 
-	let statics: Vec<LinearCombination> = statics.iter().map(|s| s.variable.into()).collect();
+	let statics: Vec<LinearCombination> = statics.iter().map(|&s| s.into()).collect();
 
 	for i in 0..depth {
 		let leaf_val_lc = if i == 0 {
-			LinearCombination::from(leaf_val.variable)
+			LinearCombination::from(leaf_val)
 		} else {
 			prev_hash.clone()
 		};
-		let one_minus_leaf_side: LinearCombination = Variable::One() - leaf_index_bits[i].variable;
+		let one_minus_leaf_side: LinearCombination = Variable::One() - leaf_index_bits[i];
 
 		let (_, _, left_1) = cs.multiply(one_minus_leaf_side.clone(), leaf_val_lc.clone());
-		let (_, _, left_2) = cs.multiply(
-			leaf_index_bits[i].variable.into(),
-			proof_nodes[i].variable.into(),
-		);
+		let (_, _, left_2) = cs.multiply(leaf_index_bits[i].into(), proof_nodes[i].into());
 		let left = left_1 + left_2;
 
-		let (_, _, right_1) = cs.multiply(leaf_index_bits[i].variable.into(), leaf_val_lc);
-		let (_, _, right_2) = cs.multiply(one_minus_leaf_side, proof_nodes[i].variable.into());
+		let (_, _, right_1) = cs.multiply(leaf_index_bits[i].into(), leaf_val_lc);
+		let (_, _, right_2) = cs.multiply(one_minus_leaf_side, proof_nodes[i].into());
 		let right = right_1 + right_2;
 
 		// prev_hash = mimc_hash_2::<CS>(cs, left, right, mimc_rounds, mimc_constants)?;
@@ -180,10 +177,6 @@ mod tests {
 			let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
 			let (com_leaf, var_leaf) = prover.commit(k, Scalar::random(&mut test_rng));
-			let leaf_alloc_scalar = AllocatedScalar {
-				variable: var_leaf,
-				assignment: Some(k),
-			};
 
 			let mut leaf_index_comms = vec![];
 			let mut leaf_index_vars = vec![];
@@ -193,10 +186,7 @@ mod tests {
 				let (c, v) = prover.commit(val.clone(), Scalar::random(&mut test_rng));
 				leaf_index_comms.push(c);
 				leaf_index_vars.push(v);
-				leaf_index_alloc_scalars.push(AllocatedScalar {
-					variable: v,
-					assignment: Some(val),
-				});
+				leaf_index_alloc_scalars.push(v);
 			}
 
 			let mut proof_comms = vec![];
@@ -206,10 +196,7 @@ mod tests {
 				let (c, v) = prover.commit(*p, Scalar::random(&mut test_rng));
 				proof_comms.push(c);
 				proof_vars.push(v);
-				proof_alloc_scalars.push(AllocatedScalar {
-					variable: v,
-					assignment: Some(*p),
-				});
+				proof_alloc_scalars.push(v);
 			}
 
 			let num_statics = 4;
@@ -219,7 +206,7 @@ mod tests {
 				&mut prover,
 				tree.edge_nodes.len(),
 				&tree.root_hash,
-				leaf_alloc_scalar,
+				var_leaf,
 				leaf_index_alloc_scalars,
 				proof_alloc_scalars,
 				statics,
@@ -235,27 +222,17 @@ mod tests {
 		let mut verifier_transcript = Transcript::new(b"VSMT");
 		let mut verifier = Verifier::new(&mut verifier_transcript);
 		let var_leaf = verifier.commit(commitments.0);
-		let leaf_alloc_scalar = AllocatedScalar {
-			variable: var_leaf,
-			assignment: None,
-		};
 
 		let mut leaf_index_alloc_scalars = vec![];
 		for l in commitments.1 {
 			let v = verifier.commit(l);
-			leaf_index_alloc_scalars.push(AllocatedScalar {
-				variable: v,
-				assignment: None,
-			});
+			leaf_index_alloc_scalars.push(v);
 		}
 
 		let mut proof_alloc_scalars = vec![];
 		for p in commitments.2 {
 			let v = verifier.commit(p);
-			proof_alloc_scalars.push(AllocatedScalar {
-				variable: v,
-				assignment: None,
-			});
+			proof_alloc_scalars.push(v);
 		}
 
 		let num_statics = 4;
@@ -265,7 +242,7 @@ mod tests {
 			&mut verifier,
 			tree.edge_nodes.len(),
 			&tree.root_hash,
-			leaf_alloc_scalar,
+			var_leaf,
 			leaf_index_alloc_scalars,
 			proof_alloc_scalars,
 			statics,

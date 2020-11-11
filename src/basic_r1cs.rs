@@ -37,6 +37,48 @@ mod tests {
 	}
 
 	#[test]
+	// One of the values is 0
+	fn test_one_of_zero() {
+		let pc_gens = PedersenGens::default();
+		let bp_gens = BulletproofGens::new(128, 1);
+
+		let (a, b, c, d) = (0u64, 5u64, 7u64, 8u64);
+
+		let mut prover_transcript = Transcript::new(b"OneOfIsZero");
+		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
+
+		let mut rng = rand::thread_rng();
+		let (com_a, var_a) = prover.commit(a.into(), Scalar::random(&mut rng));
+		let (com_b, var_b) = prover.commit(b.into(), Scalar::random(&mut rng));
+		let (com_c, var_c) = prover.commit(c.into(), Scalar::random(&mut rng));
+		let (com_d, var_d) = prover.commit(d.into(), Scalar::random(&mut rng));
+		// a * b * c * d = 0 * 5 * 7 * 8 = 0
+		let (_, _, res1) = prover.multiply(var_a.into(), var_b.into());
+		let (_, _, res2) = prover.multiply(var_c.into(), var_d.into());
+		let (_, _, res3) = prover.multiply(res1.into(), res2.into());
+		prover.constrain(res3.into());
+
+		let proof = prover.prove(&bp_gens).unwrap();
+
+		// Verifier
+		let mut verifier_transcript = Transcript::new(b"OneOfIsZero");
+		let mut verifier = Verifier::new(&mut verifier_transcript);
+		let var_a = verifier.commit(com_a);
+		let var_b = verifier.commit(com_b);
+		let var_c = verifier.commit(com_c);
+		let var_d = verifier.commit(com_d);
+
+		let (_, _, ver_res1) = verifier.multiply(var_a.into(), var_b.into());
+		let (_, _, ver_res2) = verifier.multiply(var_c.into(), var_d.into());
+		let (_, _, ver_res3) = verifier.multiply(ver_res1.into(), ver_res2.into());
+		verifier.constrain(ver_res3.into());
+
+		let res = verifier.verify(&proof, &pc_gens, &bp_gens);
+		println!("{:?}", res);
+		assert!(res.is_ok());
+	}
+
+	#[test]
 	fn test_poly_equal() {
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);

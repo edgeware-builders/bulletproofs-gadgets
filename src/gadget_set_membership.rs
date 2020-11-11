@@ -2,22 +2,21 @@ use bulletproofs::r1cs::LinearCombination;
 use bulletproofs::r1cs::{ConstraintSystem, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
 
-use crate::r1cs_utils::AllocatedQuantity;
-
 // Ensure `v` is a bit, hence 0 or 1
 pub fn bit_gadget<CS: ConstraintSystem>(
 	cs: &mut CS,
-	v: AllocatedQuantity,
+	v: Variable,
+	a_s: Option<u64>,
 ) -> Result<(), R1CSError> {
 	// TODO: Possible to save reallocation of `v` in `bit`?
-	let (a, b, o) = cs.allocate_multiplier(v.assignment.map(|q| {
+	let (a, b, o) = cs.allocate_multiplier(a_s.map(|q| {
 		let bit: u64 = (q >> 1) & 1;
 		((1 - bit).into(), bit.into())
 	}))?;
 
 	// Might not be necessary if above TODO is addressed
 	// Variable b is same as v so b + (-v) = 0
-	let neg_v: LinearCombination = vec![(v.variable, -Scalar::one())].iter().collect();
+	let neg_v: LinearCombination = vec![(v, -Scalar::one())].iter().collect();
 	cs.constrain(b + neg_v);
 
 	// Enforce a * b = 0, so one of (a,b) is zero
@@ -33,12 +32,12 @@ pub fn bit_gadget<CS: ConstraintSystem>(
 // Ensure sum of items of `vector` is `sum`
 pub fn vector_sum_gadget<CS: ConstraintSystem>(
 	cs: &mut CS,
-	vector: &[AllocatedQuantity],
+	vector: &[Variable],
 	sum: u64,
 ) -> Result<(), R1CSError> {
 	let mut constraints: Vec<(Variable, Scalar)> = vec![(Variable::One(), -Scalar::from(sum))];
-	for i in vector {
-		constraints.push((i.variable, Scalar::one()));
+	for it in vector {
+		constraints.push((*it, Scalar::one()));
 	}
 
 	cs.constrain(constraints.iter().collect());
@@ -51,19 +50,19 @@ pub fn vector_sum_gadget<CS: ConstraintSystem>(
 pub fn vector_product_gadget<CS: ConstraintSystem>(
 	cs: &mut CS,
 	items: &[u64],
-	vector: &[AllocatedQuantity],
-	value: &AllocatedQuantity,
+	vector: &[u64],
+	value: Variable,
+	assignment: u64,
 ) -> Result<(), R1CSError> {
-	let mut constraints = vec![(value.variable, -Scalar::one())];
+	let mut constraints = vec![(value, -Scalar::one())];
 
 	for i in 0..items.len() {
 		// TODO: Possible to save reallocation of elements of `vector` in `bit`? If circuit variables for vector are passed, then yes.
-		let vec_val = vector[i].assignment.ok_or(R1CSError::MissingAssignment)?;
+		let vec_val = vector[i];
 		let (_, _, _) = cs.allocate_multiplier(Some((items[i].into(), vec_val.into())))?;
 
-		let bit: u64 = vector[i].assignment.ok_or(R1CSError::MissingAssignment)?;
-		let val = value.assignment.ok_or(R1CSError::MissingAssignment)?;
-		let (a, _, o) = cs.allocate_multiplier(Some((val.into(), bit.into())))?;
+		let bit: u64 = vector[i];
+		let (a, _, o) = cs.allocate_multiplier(Some((assignment.into(), bit.into())))?;
 
 		constraints.push((o, Scalar::one()));
 
@@ -115,26 +114,20 @@ mod tests {
 			let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
 			let mut bit_vars = vec![];
+			let mut bit_vals = vec![];
 			for b in bit_map {
 				let (com, var) = prover.commit(b.into(), Scalar::random(&mut rng));
-				let quantity = AllocatedQuantity {
-					variable: var,
-					assignment: Some(b),
-				};
-				assert!(bit_gadget(&mut prover, quantity).is_ok());
+				assert!(bit_gadget(&mut prover, var, Some(b)).is_ok());
 				comms.push(com);
-				bit_vars.push(quantity);
+				bit_vars.push(var);
+				bit_vals.push(b)
 			}
 
 			// The bit vector sum should be 1
 			assert!(vector_sum_gadget(&mut prover, &bit_vars, 1).is_ok());
 
 			let (com_value, var_value) = prover.commit(value.into(), Scalar::random(&mut rng));
-			let quantity_value = AllocatedQuantity {
-				variable: var_value,
-				assignment: Some(value),
-			};
-			assert!(vector_product_gadget(&mut prover, &set, &bit_vars, &quantity_value).is_ok());
+			assert!(vector_product_gadget(&mut prover, &set, &bit_vals, var_value, value).is_ok());
 			comms.push(com_value);
 
 			println!(
@@ -155,21 +148,13 @@ mod tests {
 
 		for i in 0..set_length {
 			let var = verifier.commit(commitments[i]);
-			let quantity = AllocatedQuantity {
-				variable: var,
-				assignment: None,
-			};
-			assert!(bit_gadget(&mut verifier, quantity).is_ok());
-			bit_vars.push(quantity);
+			assert!(bit_gadget(&mut verifier, var, None).is_ok());
+			bit_vars.push(var);
 		}
 
 		assert!(vector_sum_gadget(&mut verifier, &bit_vars, 1).is_ok());
 
 		let var_val = verifier.commit(commitments[set_length]);
-		let quantity_value = AllocatedQuantity {
-			variable: var_val,
-			assignment: None,
-		};
 
 		// assert!(vector_product_gadget(&mut verifier, &set, &bit_vars, &quantity_value).is_ok());
 

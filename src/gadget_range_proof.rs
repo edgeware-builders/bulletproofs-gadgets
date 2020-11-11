@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
 	use crate::gadget_bound_check::positive_no_gadget;
-	use crate::r1cs_utils::AllocatedQuantity;
 	use bulletproofs::r1cs::LinearCombination;
 	use bulletproofs::r1cs::{ConstraintSystem, Prover, Variable, Verifier};
 	use bulletproofs::{BulletproofGens, PedersenGens};
@@ -40,20 +39,12 @@ mod tests {
 
 			// Constrain a in [0, 2^n)
 			let (com_a, var_a) = prover.commit(a.into(), Scalar::random(&mut rng));
-			let quantity_a = AllocatedQuantity {
-				variable: var_a,
-				assignment: Some(a),
-			};
-			assert!(positive_no_gadget(&mut prover, quantity_a, n).is_ok());
+			assert!(positive_no_gadget(&mut prover, var_a, Some(a), n).is_ok());
 			comms.push(com_a);
 
 			// Constrain b in [0, 2^n)
 			let (com_b, var_b) = prover.commit(b.into(), Scalar::random(&mut rng));
-			let quantity_b = AllocatedQuantity {
-				variable: var_b,
-				assignment: Some(b),
-			};
-			assert!(positive_no_gadget(&mut prover, quantity_b, n).is_ok());
+			assert!(positive_no_gadget(&mut prover, var_b, Some(b), n).is_ok());
 			comms.push(com_b);
 
 			// Constrain a+b to be same as max-min. This ensures same v is used in both commitments (`com_a` and `com_b`)
@@ -82,18 +73,10 @@ mod tests {
 		let mut verifier = Verifier::new(&mut verifier_transcript);
 
 		let var_a = verifier.commit(commitments[0]);
-		let quantity_a = AllocatedQuantity {
-			variable: var_a,
-			assignment: None,
-		};
-		assert!(positive_no_gadget(&mut verifier, quantity_a, n).is_ok());
+		assert!(positive_no_gadget(&mut verifier, var_a, None, n).is_ok());
 
 		let var_b = verifier.commit(commitments[1]);
-		let quantity_b = AllocatedQuantity {
-			variable: var_b,
-			assignment: None,
-		};
-		assert!(positive_no_gadget(&mut verifier, quantity_b, n).is_ok());
+		assert!(positive_no_gadget(&mut verifier, var_b, None, n).is_ok());
 
 		//        println!("Verifier commitments {:?}", &commitments);
 
