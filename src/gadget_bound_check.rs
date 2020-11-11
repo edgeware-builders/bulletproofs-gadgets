@@ -64,7 +64,7 @@ pub fn bound_check_gadget<CS: ConstraintSystem>(
 mod tests {
 	use super::bound_check_gadget;
 	use crate::r1cs_utils::AllocatedQuantity;
-	use bulletproofs::r1cs::{Prover, R1CSError, Verifier};
+	use bulletproofs::r1cs::{Prover, Verifier};
 	use bulletproofs::{BulletproofGens, PedersenGens};
 	use curve25519_dalek::scalar::Scalar;
 	use merlin::Transcript;
@@ -79,10 +79,6 @@ mod tests {
 
 		let v = rng.gen_range(min, max);
 		println!("v is {}", &v);
-		assert!(bound_check_helper(v, min, max).is_ok());
-	}
-
-	fn bound_check_helper(v: u64, min: u64, max: u64) -> Result<(), R1CSError> {
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);
 
@@ -132,9 +128,10 @@ mod tests {
 			)
 			.is_ok());
 
-			let proof = prover.prove(&bp_gens)?;
+			let proof = prover.prove(&bp_gens);
+			assert!(proof.is_ok());
 
-			(proof, comms)
+			(proof.unwrap(), comms)
 		};
 
 		let mut verifier_transcript = Transcript::new(b"BoundsTest");
@@ -169,6 +166,6 @@ mod tests {
 		)
 		.is_ok());
 
-		Ok(verifier.verify(&proof, &pc_gens, &bp_gens)?)
+		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
 	}
 }

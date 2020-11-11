@@ -1,7 +1,7 @@
 use crate::gadget_not_equals::is_nonzero_gadget;
 use crate::r1cs_utils::AllocatedScalar;
 use bulletproofs::r1cs::LinearCombination;
-use bulletproofs::r1cs::{ConstraintSystem, Prover, R1CSError, Variable, Verifier};
+use bulletproofs::r1cs::{ConstraintSystem, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
 
 pub fn set_non_membership_gadget<CS: ConstraintSystem>(

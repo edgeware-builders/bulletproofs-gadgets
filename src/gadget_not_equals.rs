@@ -43,6 +43,8 @@ pub fn not_equals_gadget<CS: ConstraintSystem>(
 		.collect();
 	let v_minus_expected_lc = v.variable - expected_lc;
 
+	// diff_var = ex - v
+	// diff_var - ex + v = 0
 	// Since `diff_var` is `expected - v`, `v - expected` + `diff_var` should be 0
 	cs.constrain(diff_var.variable + v_minus_expected_lc);
 
@@ -55,23 +57,19 @@ pub fn not_equals_gadget<CS: ConstraintSystem>(
 #[cfg(test)]
 mod tests {
 	use super::{not_equals_gadget, AllocatedScalar};
-	use bulletproofs::r1cs::{Prover, R1CSError, Verifier};
+	use bulletproofs::r1cs::{Prover, Verifier};
 	use bulletproofs::{BulletproofGens, PedersenGens};
 	use curve25519_dalek::ristretto::CompressedRistretto;
 	use curve25519_dalek::scalar::Scalar;
 	use merlin::Transcript;
 
 	#[test]
+	// Prove that difference between value and expected is non-zero, hence val does not equal the expected.
 	fn test_not_equals_gadget() {
 		// Check that committed value is not equal to a public value
 		let value = 10u64;
 		let expected = 5u64;
 
-		assert!(not_equals_gadget_helper(value, expected).is_ok());
-	}
-
-	// Prove that difference between value and expected is non-zero, hence val does not equal the expected.
-	fn not_equals_gadget_helper(val: u64, expected: u64) -> Result<(), R1CSError> {
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);
 
@@ -82,7 +80,7 @@ mod tests {
 			let mut rng = rand::thread_rng();
 			let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
-			let value = Scalar::from(val);
+			let value = Scalar::from(value);
 			let (com_value, var_value) = prover.commit(value.clone(), Scalar::random(&mut rng));
 			let alloc_scal = AllocatedScalar {
 				variable: var_value,
@@ -116,9 +114,10 @@ mod tests {
 			)
 			.is_ok());
 
-			let proof = prover.prove(&bp_gens)?;
+			let proof = prover.prove(&bp_gens);
+			assert!(proof.is_ok());
 
-			(proof, comms)
+			(proof.unwrap(), comms)
 		};
 
 		let mut verifier_transcript = Transcript::new(b"NotEqualsTest");
@@ -151,6 +150,6 @@ mod tests {
 		)
 		.is_ok());
 
-		Ok(verifier.verify(&proof, &pc_gens, &bp_gens)?)
+		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
 	}
 }

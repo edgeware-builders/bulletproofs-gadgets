@@ -1,3 +1,4 @@
+mod basic_r1cs;
 mod gadget_bound_check;
 mod gadget_not_equals;
 mod gadget_osmt;
