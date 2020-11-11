@@ -50,50 +50,47 @@ mod tests {
 
 		let set_length = set.len();
 
-		let (proof, commitments) = {
-			let mut comms: Vec<CompressedRistretto> = vec![];
-			let mut diff_vars: Vec<Variable> = vec![];
+		let mut comms: Vec<CompressedRistretto> = vec![];
+		let mut diff_vars: Vec<Variable> = vec![];
 
-			let mut prover_transcript = Transcript::new(b"SetMemebership1Test");
-			let mut rng = rand::thread_rng();
+		let mut prover_transcript = Transcript::new(b"SetMemebership1Test");
+		let mut rng = rand::thread_rng();
 
-			let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
-			let value = Scalar::from(value);
-			let (com_value, var_value) = prover.commit(value.clone(), Scalar::random(&mut rng));
-			comms.push(com_value);
+		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
+		let value = Scalar::from(value);
+		let (com_value, var_value) = prover.commit(value.clone(), Scalar::random(&mut rng));
+		comms.push(com_value);
 
-			for i in 0..set_length {
-				let elem = Scalar::from(set[i]);
-				let diff = elem - value;
+		for i in 0..set_length {
+			let elem = Scalar::from(set[i]);
+			let diff = elem - value;
 
-				// Take difference of set element and value, `set[i] - value`
-				let (com_diff, var_diff) = prover.commit(diff.clone(), Scalar::random(&mut rng));
-				diff_vars.push(var_diff);
-				comms.push(com_diff);
-			}
+			// Take difference of set element and value, `set[i] - value`
+			let (com_diff, var_diff) = prover.commit(diff.clone(), Scalar::random(&mut rng));
+			diff_vars.push(var_diff);
+			comms.push(com_diff);
+		}
 
-			assert!(set_membership_1_gadget(&mut prover, var_value, diff_vars, &set).is_ok());
+		assert!(set_membership_1_gadget(&mut prover, var_value, diff_vars, &set).is_ok());
 
-			println!(
-				"For set size {}, no of constraints is {}",
-				&set_length,
-				&prover.num_constraints()
-			);
+		println!(
+			"For set size {}, no of constraints is {}",
+			&set_length,
+			&prover.num_constraints()
+		);
 
-			let proof = prover.prove(&bp_gens);
-			assert!(proof.is_ok());
-
-			(proof.unwrap(), comms)
-		};
+		let proof = prover.prove(&bp_gens);
+		assert!(proof.is_ok());
+		let proof = proof.unwrap();
 
 		let mut verifier_transcript = Transcript::new(b"SetMemebership1Test");
 		let mut verifier = Verifier::new(&mut verifier_transcript);
 		let mut diff_vars: Vec<Variable> = vec![];
 
-		let var_val = verifier.commit(commitments[0]);
+		let var_val = verifier.commit(comms[0]);
 
 		for i in 1..set_length + 1 {
-			let var_diff = verifier.commit(commitments[i]);
+			let var_diff = verifier.commit(comms[i]);
 			diff_vars.push(var_diff);
 		}
 

@@ -123,7 +123,7 @@ mod tests {
 		let var_b = verifier.commit(com_b);
 
 		assert!(
-			bound_check_gadget(&mut verifier, var_v, var_a, var_a, None, None, max, min, n).is_ok()
+			bound_check_gadget(&mut verifier, var_v, var_a, var_b, None, None, max, min, n).is_ok()
 		);
 
 		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());

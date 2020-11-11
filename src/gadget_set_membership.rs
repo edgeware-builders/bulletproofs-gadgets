@@ -99,62 +99,59 @@ mod tests {
 
 		let set_length = set.len();
 
-		let (proof, commitments) = {
-			// Set all indices to 0 except the one where `value` is
-			let bit_map: Vec<u64> = set
-				.iter()
-				.map(|elem| if *elem == value { 1 } else { 0 })
-				.collect();
+		// Set all indices to 0 except the one where `value` is
+		let bit_map: Vec<u64> = set
+			.iter()
+			.map(|elem| if *elem == value { 1 } else { 0 })
+			.collect();
 
-			let mut comms = vec![];
+		let mut comms = vec![];
 
-			let mut prover_transcript = Transcript::new(b"SetMemebershipTest");
-			let mut rng = rand::thread_rng();
+		let mut prover_transcript = Transcript::new(b"SetMemebershipTest");
+		let mut rng = rand::thread_rng();
 
-			let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
+		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
-			let mut bit_vars = vec![];
-			let mut bit_vals = vec![];
-			for b in bit_map {
-				let (com, var) = prover.commit(b.into(), Scalar::random(&mut rng));
-				assert!(bit_gadget(&mut prover, var, Some(b)).is_ok());
-				comms.push(com);
-				bit_vars.push(var);
-				bit_vals.push(b)
-			}
+		let mut bit_vars = vec![];
+		let mut bit_vals = vec![];
+		for b in bit_map {
+			let (com, var) = prover.commit(b.into(), Scalar::random(&mut rng));
+			assert!(bit_gadget(&mut prover, var, Some(b)).is_ok());
+			comms.push(com);
+			bit_vars.push(var);
+			bit_vals.push(b)
+		}
 
-			// The bit vector sum should be 1
-			assert!(vector_sum_gadget(&mut prover, &bit_vars, 1).is_ok());
+		// The bit vector sum should be 1
+		assert!(vector_sum_gadget(&mut prover, &bit_vars, 1).is_ok());
 
-			let (com_value, var_value) = prover.commit(value.into(), Scalar::random(&mut rng));
-			assert!(vector_product_gadget(&mut prover, &set, &bit_vals, var_value, value).is_ok());
-			comms.push(com_value);
+		let (com_value, var_value) = prover.commit(value.into(), Scalar::random(&mut rng));
+		assert!(vector_product_gadget(&mut prover, &set, &bit_vals, var_value, value).is_ok());
+		comms.push(com_value);
 
-			println!(
-				"For set size {}, no of constraints is {}",
-				&set_length,
-				&prover.num_constraints()
-			);
-			//            println!("Prover commitments {:?}", &comms);
-			let proof = prover.prove(&bp_gens);
-			assert!(proof.is_ok());
-
-			(proof.unwrap(), comms)
-		};
+		println!(
+			"For set size {}, no of constraints is {}",
+			&set_length,
+			&prover.num_constraints()
+		);
+		//            println!("Prover commitments {:?}", &comms);
+		let proof = prover.prove(&bp_gens);
+		assert!(proof.is_ok());
+		let proof = proof.unwrap();
 
 		let mut verifier_transcript = Transcript::new(b"SetMemebershipTest");
 		let mut verifier = Verifier::new(&mut verifier_transcript);
 		let mut bit_vars = vec![];
 
 		for i in 0..set_length {
-			let var = verifier.commit(commitments[i]);
+			let var = verifier.commit(comms[i]);
 			assert!(bit_gadget(&mut verifier, var, None).is_ok());
 			bit_vars.push(var);
 		}
 
 		assert!(vector_sum_gadget(&mut verifier, &bit_vars, 1).is_ok());
 
-		let var_val = verifier.commit(commitments[set_length]);
+		let var_val = verifier.commit(comms[set_length]);
 
 		// assert!(vector_product_gadget(&mut verifier, &set, &bit_vars, &quantity_value).is_ok());
 
