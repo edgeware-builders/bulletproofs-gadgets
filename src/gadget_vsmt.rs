@@ -106,11 +106,13 @@ pub fn merkle_tree_verif_gadget<CS: ConstraintSystem>(
 mod tests {
 	use super::*;
 	use crate::gadget_poseidon::{allocate_statics_for_prover, allocate_statics_for_verifier};
-	use bulletproofs::r1cs::{Prover, Verifier};
+	use crate::mimc::{mimc, mimc_constraints, MIMC_ROUNDS};
+	use bulletproofs::r1cs::{LinearCombination, Prover, Verifier};
 	use bulletproofs::{BulletproofGens, PedersenGens};
 	use merlin::Transcript;
 	use rand::rngs::StdRng;
 	use rand::SeedableRng;
+	use std::time::Instant;
 
 	fn get_poseidon_params() -> Poseidon {
 		let width = 6;
@@ -120,7 +122,84 @@ mod tests {
 	}
 
 	#[test]
-	fn test_pair_hash() {
+	fn test_pair_hash_mimc() {
+		let mut test_rng: StdRng = SeedableRng::from_seed([24u8; 32]);
+		let xl = Scalar::random(&mut test_rng);
+		let xr = Scalar::random(&mut test_rng);
+		let constants = (0..MIMC_ROUNDS)
+			.map(|_| Scalar::random(&mut test_rng))
+			.collect::<Vec<_>>();
+		let out = mimc(&xl, &xr, &constants);
+
+		let pc_gens = PedersenGens::default();
+		let bp_gens = BulletproofGens::new(2048, 1);
+
+		let mut prover_transcript = Transcript::new(b"pair_hash");
+		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
+
+		let (com_l, var_l) = prover.commit(xl.clone(), Scalar::random(&mut test_rng));
+		let (com_r, var_r) = prover.commit(xr.clone(), Scalar::random(&mut test_rng));
+		let exp = mimc_constraints(&mut prover, &var_l.into(), &var_r.into(), &constants);
+
+		prover.constrain(exp - out);
+		let proof = prover.prove(&bp_gens).unwrap();
+
+		let mut verifier_transcript = Transcript::new(b"pair_hash");
+		let mut verifier = Verifier::new(&mut verifier_transcript);
+
+		let lv = verifier.commit(com_l);
+		let rv = verifier.commit(com_r);
+
+		let exp = mimc_constraints(&mut verifier, &lv.into(), &rv.into(), &constants);
+		verifier.constrain(exp - out);
+		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
+	}
+
+	#[test]
+	fn test_simple_proof_path() {
+		let mut test_rng: StdRng = SeedableRng::from_seed([24u8; 32]);
+		let a = Scalar::random(&mut test_rng);
+		let b = Scalar::random(&mut test_rng);
+		let c = Scalar::random(&mut test_rng);
+		let d = Scalar::random(&mut test_rng);
+		let constants = (0..MIMC_ROUNDS)
+			.map(|_| Scalar::random(&mut test_rng))
+			.collect::<Vec<_>>();
+		let out1 = mimc(&a, &b, &constants);
+		let out2 = mimc(&c, &d, &constants);
+		let root = mimc(&out1, &out2, &constants);
+
+		let pc_gens = PedersenGens::default();
+		let bp_gens = BulletproofGens::new(2048, 1);
+
+		let mut prover_transcript = Transcript::new(b"proof");
+		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
+
+		let (com_a, var_a) = prover.commit(a.clone(), Scalar::random(&mut test_rng));
+		let (com_b, var_b) = prover.commit(b.clone(), Scalar::random(&mut test_rng));
+		let (com_out2, var_out2) = prover.commit(out2.clone(), Scalar::random(&mut test_rng));
+
+		let out1 = mimc_constraints(&mut prover, &var_a.into(), &var_b.into(), &constants);
+		let root_con = mimc_constraints(&mut prover, &out1.into(), &var_out2.into(), &constants);
+
+		prover.constrain(root_con - root);
+		let proof = prover.prove(&bp_gens).unwrap();
+
+		let mut verifier_transcript = Transcript::new(b"proof");
+		let mut verifier = Verifier::new(&mut verifier_transcript);
+
+		let var_a = verifier.commit(com_a);
+		let var_b = verifier.commit(com_b);
+		let var_out2 = verifier.commit(com_out2);
+
+		let out1 = mimc_constraints(&mut verifier, &var_a.into(), &var_b.into(), &constants);
+		let root_ver = mimc_constraints(&mut verifier, &out1.into(), &var_out2.into(), &constants);
+		verifier.constrain(root_ver - root);
+		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
+	}
+
+	#[test]
+	fn test_pair_hash_poseidon() {
 		let sbox_type = &SboxType::Cube;
 		let poseidon = get_poseidon_params();
 
@@ -150,6 +229,7 @@ mod tests {
 
 		let proof = prover.prove(&bp_gens).unwrap();
 
+		let start = Instant::now();
 		let mut verifier_transcript = Transcript::new(b"pair_hash");
 		let mut verifier = Verifier::new(&mut verifier_transcript);
 
@@ -167,5 +247,9 @@ mod tests {
 		verifier.constrain(hash - expected_output);
 
 		assert!(verifier.verify(&proof, &pc_gens, &bp_gens).is_ok());
+		let end = start.elapsed();
+
+		println!("Verification time is {:?}", end);
+		panic!("asd");
 	}
 }
