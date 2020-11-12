@@ -2,9 +2,8 @@ use crate::scalar_utils::TREE_DEPTH;
 use bulletproofs::r1cs::{ConstraintSystem, LinearCombination, R1CSError, Variable};
 use curve25519_dalek::scalar::Scalar;
 
-use crate::gadget_poseidon::{
-	PoseidonParams, Poseidon_hash_2, Poseidon_hash_2_constraints, SboxType,
-};
+use crate::poseidon::Poseidon;
+use crate::sbox::SboxType;
 
 type DBVal = (Scalar, Scalar);
 
@@ -13,18 +12,18 @@ pub struct MerkleTree {
 	pub max_leaves: u32,
 	pub root_hash: Scalar,
 	pub edge_nodes: Vec<Scalar>,
-	pub hash_constants: PoseidonParams,
+	pub poseidon: Poseidon,
 }
 
 impl MerkleTree {
-	pub fn new(hash_constants: PoseidonParams) -> Self {
+	pub fn new(poseidon: Poseidon) -> Self {
 		let depth = TREE_DEPTH;
 		Self {
 			root_hash: Scalar::zero(),
 			leaf_count: 0,
 			max_leaves: u32::MAX >> (32 - depth),
 			edge_nodes: vec![Scalar::zero(); depth as usize],
-			hash_constants,
+			poseidon,
 		}
 	}
 
@@ -38,7 +37,7 @@ impl MerkleTree {
 			}
 
 			let hash = self.edge_nodes[i];
-			pair_hash = Poseidon_hash_2(hash, pair_hash, &self.hash_constants, &SboxType::Inverse);
+			pair_hash = self.poseidon.hash_2(hash, pair_hash, &SboxType::Inverse);
 
 			edge_index /= 2;
 		}
@@ -52,8 +51,8 @@ impl MerkleTree {
 		let mut hash = pub_key;
 		for (is_right, node) in path {
 			hash = match is_right {
-				true => Poseidon_hash_2(hash, node, &self.hash_constants, &SboxType::Inverse),
-				false => Poseidon_hash_2(node, hash, &self.hash_constants, &SboxType::Inverse),
+				true => self.poseidon.hash_2(hash, node, &SboxType::Inverse),
+				false => self.poseidon.hash_2(node, hash, &SboxType::Inverse),
 			}
 		}
 		hash == self.root_hash
@@ -70,7 +69,7 @@ pub fn merkle_tree_verif_gadget<CS: ConstraintSystem>(
 	leaf_index_bits: Vec<Variable>,
 	proof_nodes: Vec<Variable>,
 	statics: Vec<Variable>,
-	poseidon_params: &PoseidonParams,
+	poseidon: &Poseidon,
 ) -> Result<(), R1CSError> {
 	let mut prev_hash = LinearCombination::from(leaf_val);
 
@@ -89,12 +88,11 @@ pub fn merkle_tree_verif_gadget<CS: ConstraintSystem>(
 		let right = right_1 + right_2;
 
 		// prev_hash = mimc_hash_2::<CS>(cs, left, right, mimc_rounds, mimc_constants)?;
-		prev_hash = Poseidon_hash_2_constraints::<CS>(
+		prev_hash = poseidon.hash_2_constraints::<CS>(
 			cs,
 			left,
 			right,
 			statics.clone(),
-			poseidon_params,
 			&SboxType::Inverse,
 		)?;
 	}
@@ -107,31 +105,29 @@ pub fn merkle_tree_verif_gadget<CS: ConstraintSystem>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::gadget_poseidon::{
-		allocate_statics_for_prover, allocate_statics_for_verifier, Poseidon_hash_2_gadget,
-	};
+	use crate::gadget_poseidon::{allocate_statics_for_prover, allocate_statics_for_verifier};
 	use bulletproofs::r1cs::{Prover, Verifier};
 	use bulletproofs::{BulletproofGens, PedersenGens};
 	use merlin::Transcript;
 	use rand::rngs::StdRng;
 	use rand::SeedableRng;
 
-	fn get_poseidon_params() -> PoseidonParams {
+	fn get_poseidon_params() -> Poseidon {
 		let width = 6;
 		let (full_b, full_e) = (4, 4);
 		let partial_rounds = 140;
-		PoseidonParams::new(width, full_b, full_e, partial_rounds)
+		Poseidon::new(width, full_b, full_e, partial_rounds)
 	}
 
 	#[test]
 	fn test_pair_hash() {
 		let sbox_type = &SboxType::Cube;
-		let s_params = get_poseidon_params();
+		let poseidon = get_poseidon_params();
 
 		let mut test_rng: StdRng = SeedableRng::from_seed([24u8; 32]);
 		let xl = Scalar::random(&mut test_rng);
 		let xr = Scalar::random(&mut test_rng);
-		let expected_output = Poseidon_hash_2(xl, xr, &s_params, sbox_type);
+		let expected_output = poseidon.hash_2(xl, xr, sbox_type);
 
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(2048, 1);
@@ -146,15 +142,9 @@ mod tests {
 		let statics = allocate_statics_for_prover(&mut prover, num_statics);
 
 		let statics: Vec<LinearCombination> = statics.iter().map(|&s| s.into()).collect();
-		let hash = Poseidon_hash_2_constraints(
-			&mut prover,
-			var_l.into(),
-			var_r.into(),
-			statics,
-			&s_params,
-			sbox_type,
-		)
-		.unwrap();
+		let hash = poseidon
+			.hash_2_constraints(&mut prover, var_l.into(), var_r.into(), statics, sbox_type)
+			.unwrap();
 
 		prover.constrain(hash - expected_output);
 
@@ -170,15 +160,9 @@ mod tests {
 		let statics = allocate_statics_for_verifier(&mut verifier, num_statics, &pc_gens);
 
 		let statics: Vec<LinearCombination> = statics.iter().map(|&s| s.into()).collect();
-		let hash = Poseidon_hash_2_constraints(
-			&mut verifier,
-			lv.into(),
-			rv.into(),
-			statics,
-			&s_params,
-			sbox_type,
-		)
-		.unwrap();
+		let hash = poseidon
+			.hash_2_constraints(&mut verifier, lv.into(), rv.into(), statics, sbox_type)
+			.unwrap();
 
 		verifier.constrain(hash - expected_output);
 

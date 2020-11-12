@@ -9,6 +9,8 @@ mod gadget_set_membership_1;
 mod gadget_set_non_membership;
 mod gadget_vsmt;
 mod mimc;
+mod poseidon;
 mod poseidon_constants;
 mod r1cs_utils;
+mod sbox;
 mod scalar_utils;
