@@ -5,6 +5,7 @@ mod tests {
 	use bulletproofs::{BulletproofGens, PedersenGens};
 	use curve25519_dalek::scalar::Scalar;
 	use merlin::Transcript;
+	use rand::{thread_rng, Rng};
 
 	#[test]
 	fn test_zero() {
@@ -16,7 +17,7 @@ mod tests {
 		let mut prover_transcript = Transcript::new(b"Zero");
 		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
-		let mut rng = rand::thread_rng();
+		let mut rng = thread_rng();
 		let (com_x, var_x) = prover.commit(x.into(), Scalar::random(&mut rng));
 		let (_, _, res) = prover.multiply(var_x.into(), var_x.into());
 		prover.constrain(res.into());
@@ -47,7 +48,7 @@ mod tests {
 		let mut prover_transcript = Transcript::new(b"OneOfIsZero");
 		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
-		let mut rng = rand::thread_rng();
+		let mut rng = thread_rng();
 		let (com_a, var_a) = prover.commit(a.into(), Scalar::random(&mut rng));
 		let (com_b, var_b) = prover.commit(b.into(), Scalar::random(&mut rng));
 		let (com_c, var_c) = prover.commit(c.into(), Scalar::random(&mut rng));
@@ -79,6 +80,40 @@ mod tests {
 	}
 
 	#[test]
+	// should have zero and one only
+	fn test_zero_and_one() {
+		let pc_gens = PedersenGens::default();
+		let bp_gens = BulletproofGens::new(128, 1);
+
+		let (a, b) = (0u64, 1u64);
+
+		let mut prover_transcript = Transcript::new(b"ZeroAndOne");
+		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
+
+		let mut rng = thread_rng();
+		let (com_a, var_a) = prover.commit(a.into(), Scalar::random(&mut rng));
+		let (com_b, var_b) = prover.commit(b.into(), Scalar::random(&mut rng));
+
+		let (_, _, res1) = prover.multiply(var_a.into(), var_b.into());
+		prover.constrain(res1.into());
+		prover.constrain(var_a + (var_b - 1u64));
+
+		let proof = prover.prove(&bp_gens).unwrap();
+
+		let mut verifier_transcript = Transcript::new(b"ZeroAndOne");
+		let mut verifier = Verifier::new(&mut verifier_transcript);
+		let var_a = verifier.commit(com_a);
+		let var_b = verifier.commit(com_b);
+
+		let (_, _, ver_res1) = verifier.multiply(var_a.into(), var_b.into());
+		verifier.constrain(ver_res1.into());
+		verifier.constrain(var_a + (var_b - 1u64));
+		let res = verifier.verify(&proof, &pc_gens, &bp_gens);
+		println!("{:?}", res);
+		assert!(res.is_ok());
+	}
+
+	#[test]
 	fn test_poly_equal() {
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(128, 1);
@@ -88,7 +123,7 @@ mod tests {
 
 		let (a, b, c, d) = (14u64, 13u64, 14u64, 13u64);
 
-		let mut rng = rand::thread_rng();
+		let mut rng = thread_rng();
 		let x = Scalar::random(&mut rng);
 
 		let (com_a, var_a) = prover.commit(a.into(), Scalar::random(&mut rng));
@@ -133,7 +168,7 @@ mod tests {
 		let mut prover_transcript = Transcript::new(b"Factors");
 		let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
-		let mut rng = rand::thread_rng();
+		let mut rng = thread_rng();
 
 		let (com_p, var_p) = prover.commit(p.into(), Scalar::random(&mut rng));
 		let (com_q, var_q) = prover.commit(q.into(), Scalar::random(&mut rng));
@@ -170,7 +205,7 @@ mod tests {
 			let mut prover_transcript = Transcript::new(b"Factors");
 			let mut prover = Prover::new(&pc_gens, &mut prover_transcript);
 
-			let mut rng = rand::thread_rng();
+			let mut rng = thread_rng();
 
 			let (com_p, var_p) = prover.commit(p.into(), Scalar::random(&mut rng));
 			let (com_q, var_q) = prover.commit(q.into(), Scalar::random(&mut rng));
