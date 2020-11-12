@@ -3,7 +3,7 @@ use std::fmt;
 use std::num::ParseIntError;
 pub type ScalarBytes = [u8; 32];
 
-pub const TREE_DEPTH: usize = 253;
+pub const TREE_DEPTH: usize = 32;
 
 /// Get a 253 elem bit array of this scalar, LSB is first element of this array
 #[derive(Copy, Clone)]
@@ -153,7 +153,7 @@ pub fn get_bits_at(scalar: &Scalar, process_bits: usize) -> Vec<u8> {
 	for i in 0..process_bits {
 		// As i runs from 0..256, the bottom 3 bits index the bit,
 		// while the upper bits index the byte.
-		bits[i] = ((bytes[i >> 3] >> (i & 7)) & 1u8) as u8;
+		bits[i] = (bytes[i >> 3] >> (i & 7)) & 1;
 	}
 	bits
 }

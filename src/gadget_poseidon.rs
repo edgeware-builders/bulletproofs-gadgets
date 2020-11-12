@@ -1,7 +1,6 @@
 #![allow(non_snake_case)]
 use crate::gadget_not_equals::is_nonzero_gadget;
 use crate::poseidon_constants::{MDS_ENTRIES, ROUND_CONSTS};
-use crate::r1cs_utils::constrain_lc_with_scalar;
 use crate::scalar_utils::get_scalar_from_hex;
 use bulletproofs::r1cs::{
 	ConstraintSystem, LinearCombination, Prover, R1CSError, Variable, Verifier,
@@ -168,7 +167,7 @@ impl SboxType {
 		is_nonzero_gadget(cs, var_l, var_r)?;
 
 		// Constrain product of `inp_plus_const` and its inverse to be 1.
-		constrain_lc_with_scalar::<CS>(cs, var_o.unwrap().into(), &Scalar::one());
+		cs.constrain(var_o.unwrap() - 1u64);
 
 		Ok(var_r)
 	}
@@ -425,7 +424,7 @@ pub fn Poseidon_permutation_gadget<'a, CS: ConstraintSystem>(
 		Poseidon_permutation_constraints::<CS>(cs, input_vars, params, sbox_type)?;
 
 	for i in 0..width {
-		constrain_lc_with_scalar::<CS>(cs, permutation_output[i].to_owned(), &output[i]);
+		cs.constrain(permutation_output[i].to_owned() - output[i]);
 	}
 
 	Ok(())
@@ -492,7 +491,7 @@ pub fn Poseidon_hash_2_gadget<'a, CS: ConstraintSystem>(
 	let hash =
 		Poseidon_hash_2_constraints::<CS>(cs, xl.into(), xr.into(), statics, params, sbox_type)?;
 
-	constrain_lc_with_scalar::<CS>(cs, hash, output);
+	cs.constrain(hash - *output);
 
 	Ok(())
 }
@@ -560,7 +559,7 @@ pub fn Poseidon_hash_4_gadget<'a, CS: ConstraintSystem>(
 	}
 	let hash = Poseidon_hash_4_constraints::<CS>(cs, input_arr, statics, params, sbox_type)?;
 
-	constrain_lc_with_scalar::<CS>(cs, hash, output);
+	cs.constrain(hash - *output);
 
 	Ok(())
 }
@@ -636,11 +635,6 @@ mod tests {
 			.collect::<Vec<_>>();
 		let expected_output = Poseidon_permutation(&input, &s_params, sbox_type);
 
-		/*println!("Input:\n");
-		println!("{:?}", &input);
-		println!("Expected output:\n");
-		println!("{:?}", &expected_output);*/
-
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(2048, 1);
 
@@ -702,12 +696,6 @@ mod tests {
 		let xl = Scalar::random(&mut test_rng);
 		let xr = Scalar::random(&mut test_rng);
 		let expected_output = Poseidon_hash_2(xl, xr, &s_params, sbox_type);
-
-		/*println!("Input:\n");
-		println!("xl={:?}", &xl);
-		println!("xr={:?}", &xr);
-		println!("Expected output:\n");
-		println!("{:?}", &expected_output);*/
 
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(2048, 1);
@@ -795,12 +783,6 @@ mod tests {
 		let mut input = [Scalar::zero(); 4];
 		input.copy_from_slice(_input.as_slice());
 		let expected_output = Poseidon_hash_4(input, &s_params, sbox_type);
-
-		/*println!("Input:\n");
-		println!("xl={:?}", &xl);
-		println!("xr={:?}", &xr);
-		println!("Expected output:\n");
-		println!("{:?}", &expected_output);*/
 
 		let pc_gens = PedersenGens::default();
 		let bp_gens = BulletproofGens::new(2048, 1);

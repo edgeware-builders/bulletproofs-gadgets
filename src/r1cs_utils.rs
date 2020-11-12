@@ -31,12 +31,3 @@ pub fn is_zero_gadget<CS: ConstraintSystem>(cs: &mut CS, x: Variable) -> Result<
 
 	Ok(())
 }
-
-/// Constrain a linear combination to be equal to a scalar
-pub fn constrain_lc_with_scalar<CS: ConstraintSystem>(
-	cs: &mut CS,
-	lc: LinearCombination,
-	scalar: &Scalar,
-) {
-	cs.constrain(lc - LinearCombination::from(*scalar));
-}
